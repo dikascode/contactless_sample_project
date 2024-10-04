@@ -2,6 +2,7 @@ package com.woleapp.netpluscontactlesssdkimplementationsampleproject
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -13,6 +14,9 @@ import com.danbamitale.epmslib.entities.CardData
 import com.danbamitale.epmslib.entities.clearPinKey
 import com.danbamitale.epmslib.extensions.formatCurrencyAmount
 import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonSyntaxException
 import com.netpluspay.contactless.sdk.start.ContactlessSdk
 import com.netpluspay.contactless.sdk.utils.ContactlessReaderResult
 import com.netpluspay.nibssclient.models.IsoAccountType
@@ -21,6 +25,7 @@ import com.netpluspay.nibssclient.models.UserData
 import com.netpluspay.nibssclient.service.NetposPaymentClient
 import com.pixplicity.easyprefs.library.Prefs
 import com.woleapp.netpluscontactlesssdkimplementationsampleproject.AppUtils.CARD_HOLDER_NAME
+import com.woleapp.netpluscontactlesssdkimplementationsampleproject.AppUtils.CLEAR_PIN_KEY
 import com.woleapp.netpluscontactlesssdkimplementationsampleproject.AppUtils.CONFIG_DATA
 import com.woleapp.netpluscontactlesssdkimplementationsampleproject.AppUtils.ERROR_TAG
 import com.woleapp.netpluscontactlesssdkimplementationsampleproject.AppUtils.KEY_HOLDER
@@ -51,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     private var previousAmount: Long? = null
     private val compositeDisposable: CompositeDisposable = CompositeDisposable()
     var netposPaymentClient: NetposPaymentClient = NetposPaymentClient
+    val loaderDialog: LoadingDialog = LoadingDialog()
     private val makePaymentResultLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val data: Intent? = result.data
@@ -60,6 +66,8 @@ class MainActivity : AppCompatActivity() {
                     amountET.text.clear()
                     val cardReadData = i.getStringExtra("data")!!
                     val cardResult = gson.fromJson(cardReadData, CardResult::class.java)
+
+                    Log.d("card_data_result", gson.toJson(cardResult))
                     makePayment(cardResult, amountToPay)
                 }
             }
@@ -105,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         Timber.d("DEVICE_SERIAL_NUMBER===>%s", getSampleUserData().terminalSerialNumber)
         makePaymentButton.setOnClickListener {
             resultViewerTextView.text = ""
-            if (amountET.text.isNullOrEmpty() || amountET.text.toString().toLong() < 200L) {
+            if (amountET.text.isNullOrEmpty() || amountET.text.toString().toLong() < 100L) {
                 Toast.makeText(this, getString(R.string.enter_valid_amount), Toast.LENGTH_LONG)
                     .show()
                 return@setOnClickListener
@@ -116,7 +124,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         checkBalanceButton.setOnClickListener {
-            launchContactless(checkBalanceResultLauncher, 200.0)
+            launchContactless(checkBalanceResultLauncher, 100.0)
         }
     }
 
@@ -174,6 +182,7 @@ class MainActivity : AppCompatActivity() {
                         if (pinKey != null) {
                             Prefs.putString(KEY_HOLDER, gson.toJson(keyHolder))
                             Prefs.putString(CONFIG_DATA, gson.toJson(configData))
+                            Prefs.putString(CLEAR_PIN_KEY, gson.toJson(pinKey))
                         }
                     }
                     error?.let {
@@ -207,36 +216,113 @@ class MainActivity : AppCompatActivity() {
                     accountType = IsoAccountType.SAVINGS,
                 )
             }
-        cardData.pinBlock = cardResult.cardReadResult.pinBlock
+
+        val credentials = JsonObject().apply {
+            addProperty("terminalId", userData.terminalId)
+
+            try {
+                add("makeParams", JsonParser.parseString(Gson().toJson(makePaymentParams)))
+                add("keyHolder", JsonParser.parseString(Prefs.getString(KEY_HOLDER)))
+                add("configData", JsonParser.parseString(Prefs.getString(CONFIG_DATA)))
+                add("clearPinKey", JsonParser.parseString(Prefs.getString(CLEAR_PIN_KEY)))
+            } catch (e: JsonSyntaxException) {
+                Log.e("JSON Error", "Error parsing JSON", e)
+            }
+            addProperty("cardScheme", cardResult.cardScheme)
+            addProperty("cardHolderName", CARD_HOLDER_NAME)
+        }
+
+
         compositeDisposable.add(
-            netposPaymentClient.makePayment(
-                this,
-                userData.terminalId,
-                gson.toJson(makePaymentParams),
-                cardResult.cardScheme,
-                CARD_HOLDER_NAME,
-                "TESTING_TESTING",
-            ).subscribeOn(Schedulers.io())
+            PosClient.getInstance().posTransaction(credentials)
+                .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
-                    { transactionWithRemark ->
+                    { response ->
                         loaderDialog.dismiss()
-                        resultViewerTextView.text = gson.toJson(transactionWithRemark)
-                        Timber.d(
-                            "$PAYMENT_SUCCESS_DATA_TAG%s",
-                            gson.toJson(transactionWithRemark),
-                        )
+
+                        if (response.isSuccessful) {
+                            val jsonObject = response.body()
+
+                            val stringBuilder = StringBuilder()
+
+
+                            jsonObject?.entrySet()?.forEach { entry ->
+                                val key = entry.key
+                                val value = entry.value
+
+                                if (value.isJsonPrimitive) {
+                                    val primitiveValue = value.asJsonPrimitive
+                                    val displayValue = when {
+                                        primitiveValue.isString -> primitiveValue.asString
+                                        primitiveValue.isNumber -> primitiveValue.asNumber.toString()
+                                        primitiveValue.isBoolean -> primitiveValue.asBoolean.toString()
+                                        else -> "Unknown value type"
+                                    }
+
+                                    stringBuilder.append("$key: $displayValue\n")
+                                } else if (value.isJsonNull) {
+                                    stringBuilder.append("$key: null\n")
+                                } else {
+                                    stringBuilder.append("$key: Complex type (not displayed)\n")
+                                }
+                            }
+
+
+                            resultViewerTextView.text = stringBuilder.toString()
+                        } else {
+
+                            resultViewerTextView.text = "Error: ${response.code()}"
+                        }
                     },
                     { throwable ->
                         loaderDialog.dismiss()
                         resultViewerTextView.text = throwable.localizedMessage
-                        Timber.d(
-                            "$PAYMENT_ERROR_DATA_TAG%s",
-                            throwable.localizedMessage,
-                        )
-                    },
-                ),
+                        Log.d("$PAYMENT_ERROR_DATA_TAG%s", throwable.localizedMessage)
+                    }
+                )
         )
+
+//        val makePaymentParams =
+//            cardData.let { cdData ->
+//                previousAmount = amountToPay
+//                MakePaymentParams(
+//                    amount = amountToPay,
+//                    terminalId = userData.terminalId,
+//                    cardData = cdData,
+//                    accountType = IsoAccountType.SAVINGS,
+//                )
+//            }
+//        cardData.pinBlock = cardResult.cardReadResult.pinBlock
+//        compositeDisposable.add(
+//            netposPaymentClient.makePayment(
+//                this,
+//                userData.terminalId,
+//                gson.toJson(makePaymentParams),
+//                cardResult.cardScheme,
+//                CARD_HOLDER_NAME,
+//                "TESTING_TESTING",
+//            ).subscribeOn(Schedulers.io())
+//                .observeOn(AndroidSchedulers.mainThread())
+//                .subscribe(
+//                    { transactionWithRemark ->
+//                        loaderDialog.dismiss()
+//                        resultViewerTextView.text = gson.toJson(transactionWithRemark)
+//                        Log.d(
+//                            "$PAYMENT_SUCCESS_DATA_TAG%s",
+//                            gson.toJson(transactionWithRemark),
+//                        )
+//                    },
+//                    { throwable ->
+//                        loaderDialog.dismiss()
+//                        resultViewerTextView.text = throwable.localizedMessage
+//                        Timber.d(
+//                            "$PAYMENT_ERROR_DATA_TAG%s",
+//                            throwable.localizedMessage,
+//                        )
+//                    },
+//                ),
+//        )
     }
 
     override fun onDestroy() {

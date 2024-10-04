@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.ContextWrapper
 import android.os.Bundle
 import android.view.WindowManager
+import com.dsofttech.dprefs.utils.DPrefs
 import com.pixplicity.easyprefs.library.Prefs
 
 class App : Application() {
@@ -17,6 +18,8 @@ class App : Application() {
             .setPrefsName(packageName)
             .setUseDefaultSharedPreference(true)
             .build()
+
+        DPrefs.initializeDPrefs(this)
     }
 
     private fun disableScreenshotAndVideoRecording() {

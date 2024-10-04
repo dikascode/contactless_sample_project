@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace 'com.woleapp.netpluscontactlesssdkimplementationsampleproject'
-    compileSdk 32
+    compileSdk 33
 
     defaultConfig {
         applicationId "com.woleapp.netpluscontactlesssdkimplementationsampleproject"
-        minSdk 23
-        targetSdk 32
+        minSdk 28
+        targetSdk 33
         versionCode 1
         versionName "1.0"
 
@@ -35,16 +35,22 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
     }
     ndkVersion '21.3.6528147'
     externalNativeBuild {
         ndkBuild {
             path file('src/main/jni/Android.mk')
+        }
+    }
+
+    configurations {
+        configureEach {
+            exclude group: 'org.slf4j', module: 'slf4j-android'
         }
     }
 }
@@ -58,11 +64,14 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Add Netplus' Contactless sdk dependency
-    implementation "com.github.netplusTeam:contactless-sdk:1.0.19"
+    implementation "com.github.netplusTeam:contactless-sdk:1.1.6"
 
     // Dependencies for Netpos Payment client
-    implementation "com.github.netplusTeam:netplus-epms:1.0.11"
-    implementation 'com.github.netplusTeam:NetposNibssClient:1.0.12'
+    implementation "com.github.netplusTeam:netplus-epms:1.0.23"
+    implementation 'com.github.netplusTeam:NetposNibssClient:1.0.13'
+
+    //Netpos TyP10 sdk
+//    implementation 'com.github.netplusTeam:NetPosTySDK:1.0.5'
 
     implementation 'pub.devrel:easypermissions:3.0.0'
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
@@ -73,6 +82,8 @@ dependencies {
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'com.squareup.retrofit2:adapter-rxjava2:2.9.0'
     implementation("com.squareup.okhttp3:logging-interceptor:5.0.0-alpha.2")
+
+    implementation "com.github.D-Soft-Tech:DPrefs:1.0.4"
 
     //room (This can be left out if you are already using room)
     implementation "androidx.room:room-runtime:2.4.2"
@@ -90,4 +101,5 @@ dependencies {
     //workmanager
     // For Kotlin
     implementation 'androidx.work:work-runtime-ktx:2.7.1'
+    implementation 'com.google.code.gson:gson:2.9.0'
 }

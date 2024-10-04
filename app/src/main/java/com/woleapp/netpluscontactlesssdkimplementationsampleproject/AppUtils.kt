@@ -19,6 +19,7 @@ object AppUtils {
     const val TAG_TERMINAL_CONFIGURATION = "TAG_TERMINAL_CONFIGURATION"
     const val CARD_HOLDER_NAME = "CUSTOMER"
     const val POS_ENTRY_MODE = "051"
+    const val CLEAR_PIN_KEY = "CLEAR_PIN_KEY"
 
     @SuppressLint("PrivateApi")
     fun getDeviceSerialNumber(): String {
@@ -42,14 +43,14 @@ object AppUtils {
     }
 
     fun getSampleUserData() = UserData(
-        "Netplus",
-        "Netplus",
-        "5de231d9-1be0-4c31-8658-6e15892f2b83",
-        "2033ALZP",
-        "0123456789ABC", // getDeviceSerialNumber(),
+        "Netplus", // => Just a string for your business
+        "Netplus", // => Just a string for your business
+        "5de231d9-1be0-4c31-8658-6e15892f2b83", // => Netplus operations will provide this but you'd still have to figure how to pass it in. It assists in logging a transaction against your record as each partner id is unique
+        "2033ALZP", // => Discuss with Mr Sam on how to get this and then you'd figure how to pass it in
+        "0123456789ABC", // getDeviceSerialNumber(), => needed if routing transaction via interswitch route but this can be empty string since we use NIBSS
         // getDeviceSerialNumber(),
-        "Marwa Lagos",
-        "Test Account",
+        "Marwa Lagos", // => Just a string for your business Address
+        "Test Account", // => Just a string for your business
         "",
         "",
         "",
